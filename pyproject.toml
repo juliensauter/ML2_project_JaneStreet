@@ -9,9 +9,12 @@ dependencies = [
     "ipykernel>=6.29.5",
     "kagglehub>=0.3.12",
     "matplotlib>=3.10.3",
+    "numba>=0.61.2",
     "numpy==1.26.4",
     "pandas>=2.3.0",
+    "polars>=1.31.0",
     "pyarrow>=20.0.0",
+    "scikit-learn>=1.7.0",
     "tokenizers>=0.21.1",
     "torch==2.3.1",
     "transformers>=4.52.4",
@@ -20,3 +23,8 @@ dependencies = [
 
 [tool.uv.sources]
 uni2ts = { path = "uni2ts_repo", editable = true }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.1",
+]
