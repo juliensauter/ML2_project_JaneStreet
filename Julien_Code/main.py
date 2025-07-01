@@ -210,10 +210,10 @@ if __name__ == "__main__":
     context_length = 1536
     prediction_length = 256
     
-    patch_size = 64 # {"auto", 8, 16, 32, 64, 128}
+    patch_size = 128 # {"auto", 8, 16, 32, 64, 128}
     num_samples = 50
     target_dim = 1
-    batch_size = 8
+    batch_size = 16
     # System configuration
     
     num_workers = (
