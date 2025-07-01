@@ -88,10 +88,11 @@ def setup_callbacks():
     """Setup all training callbacks."""
     ckpt_cb = callbacks.ModelCheckpoint(
         dirpath="checkpoints",
+        # filename="best",
         filename="{epoch:02d}-{val/PackedNLLLoss:.4f}",
         every_n_epochs=1,
         save_last=True,
-        save_top_k=-1,
+        save_top_k=3,
         monitor="val/PackedNLLLoss",
         mode="min",
     )
