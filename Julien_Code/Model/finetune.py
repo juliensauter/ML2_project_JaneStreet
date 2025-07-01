@@ -25,9 +25,9 @@ from uni2ts.transform import (
 
 
 class Finetuner(MoiraiFinetune):
-    """Thin wrapper around `MoiraiPretrain` that keeps a freq attribute but
-    **does not** forward it to the parent constructor (which doesn't accept it).
-    Everything else (optimiser, transforms, trainer factory) is inherited.
+    """
+    Wrapper for MoiraiFinetune that implements layer freezing for stable fine-tuning.
+    Only the input embedding and output head layers are trained.
     """
 
     def __init__(
@@ -55,6 +55,44 @@ class Finetuner(MoiraiFinetune):
             lr = learning_rate,
             weight_decay = weight_decay
         )
+        self._freeze_layers()
+
+    def _freeze_layers(self, bitfit: bool = True) -> None:
+        """
+        Freeze embedding + lower 18 encoder blocks; 
+        leave top-6 blocks, final norm, and param head trainable.
+        Optionally BitFit-unfreeze all biases & norm-scales.
+        """
+        # 1) freeze everything
+        for p in self.module.parameters():
+            p.requires_grad = False
+
+        # 2) unfreeze *top-6* encoder blocks
+        # The Moirai "large" model has 24 total encoder layers. We train the top 6.
+        num_layers = len(self.module.encoder.layers)
+        num_unfreeze = 6
+        for block in self.module.encoder.layers[num_layers - num_unfreeze:]:
+            for p in block.parameters():
+                p.requires_grad = True
+
+        # 3) unfreeze the final RMSNorm after the stack
+        for p in self.module.encoder.norm.parameters():
+            p.requires_grad = True
+
+        # 4) unfreeze the distribution head, which is named 'param_proj'
+        for p in self.module.param_proj.parameters():
+            p.requires_grad = True
+
+        # 5) (optional) BitFit – also thaw every bias & norm-scale everywhere
+        if bitfit:
+            for name, p in self.module.named_parameters():
+                if name.endswith(".bias") or ".norm.weight" in name:
+                    p.requires_grad = True
+
+        # 6) bookkeeping
+        trainable = sum(p.numel() for p in self.module.parameters() if p.requires_grad)
+        total     = sum(p.numel() for p in self.module.parameters())
+        print(f"❄️  Frozen {total-trainable:,}/{total:,} params  ·  Trainable = {trainable/1e6:.1f} M  ({100*trainable/total:.2f} %)")
 
     @property
     def train_transform_map(
@@ -162,11 +200,3 @@ class Finetuner(MoiraiFinetune):
             )
 
         return defaultdict(lambda: default_train_transform)
-
-# Usage example (unchanged):
-# finetune_module = MoiraiFinetune(
-#     module_kwargs={"patch_size":8, "context_length":256, "prediction_length":20},
-#     freq="S", device="cuda")
-# collate_fn = finetune_module.train_transform_map[type(ds)]()
-# trainer    = finetune_module.create_trainer(max_epochs=10)
-# trainer.fit(finetune_module, loader)

@@ -4,11 +4,13 @@ print("Importing Modules...")
 from Helper.timing import timer, timeit
 
 with timer("Module Imports"):
+    from sys import exit
+    import os
     from pathlib import Path
     import torch
     from torch.utils.data import DataLoader
 
-    from Helper.preprocessing import Data
+    from Helper.data_processing import Data
     from Helper.dataset import TransformedDataset, AddFreq
     from Helper.callbacks import LRFinder
 
@@ -36,13 +38,13 @@ def load_model(model_path, min_patches):
     )
 
 @timeit("Dataset Transformation")
-def create_transformed_datasets(data, finetuner, patch_size):
+def create_transformed_datasets(data: Data, finetuner: Finetuner, patch_size):
     """Create training and validation datasets with transformations."""
-    train_transform = finetuner.train_transform_map[type(data.dataset)](patch_size=patch_size)
+    train_transform = finetuner.train_transform_map[type(data.train_dataset)](patch_size=patch_size)
     add_freq_transform = AddFreq(freq="s")
     
-    train_dataset = TransformedDataset(data.dataset, add_freq_transform + train_transform)
-    val_dataset = TransformedDataset(data.dataset, add_freq_transform + train_transform)
+    train_dataset = TransformedDataset(data.train_dataset, add_freq_transform + train_transform)
+    val_dataset = TransformedDataset(data.val_dataset, add_freq_transform + train_transform)
     
     return train_dataset, val_dataset
 
@@ -54,7 +56,7 @@ def create_dataloaders(train_dataset, val_dataset, finetuner, batch_size, num_wo
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         collate_fn=collate_fn,
         num_workers=num_workers,
         pin_memory=True,
@@ -114,13 +116,12 @@ def setup_trainer(logger, callbacks_list):
     """Setup the PyTorch Lightning trainer."""
     return Trainer(
         max_epochs=200,
-        accelerator="gpu",
+        accelerator="auto",
         devices="auto",
         logger=logger,
         callbacks=callbacks_list,
         log_every_n_steps=1,
         gradient_clip_val=0.5,
-        limit_train_batches=200,
     )
 
 @timeit("Training Execution")
@@ -206,11 +207,11 @@ if __name__ == "__main__":
     # Model configuration
     model_path = "large"
     
-    context_length = 200
-    prediction_length = 20
+    context_length = 1536
+    prediction_length = 256
     
-    patch_size = 32 # {"auto", 8, 16, 32, 64, 128}
-    num_samples = 100
+    patch_size = 64 # {"auto", 8, 16, 32, 64, 128}
+    num_samples = 50
     target_dim = 1
     batch_size = 8
     # System configuration
